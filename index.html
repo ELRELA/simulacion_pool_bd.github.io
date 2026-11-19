@@ -1,0 +1,2804 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador de Pool de Conexiones (HikariCP / PostgreSQL) | DES</title>
+  <style>
+    :root {
+      --primary-navy: #0f2942;
+      --primary-dark: #0a1c2e;
+      --primary-light: #1b3d61;
+      --accent-blue: #2563eb;
+      --accent-blue-light: #dbeafe;
+      --accent-amber: #d97706;
+      --accent-amber-light: #fef3c7;
+      --accent-red: #dc2626;
+      --accent-red-light: #fee2e2;
+      --accent-green: #10b981;
+      --accent-green-light: #d1fae5;
+      --bg-page: #f8fafc;
+      --bg-card: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
+      --border-color: #e2e8f0;
+      --border-dark: #cbd5e1;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --shadow-sm: 0 1px 3px rgba(15, 41, 66, 0.08);
+      --shadow-md: 0 4px 12px rgba(15, 41, 66, 0.08);
+      --shadow-lg: 0 8px 24px rgba(15, 41, 66, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      line-height: 1.5;
+      padding-bottom: 50px;
+    }
+
+    .num-tabular {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Header Institucional */
+    header.inst-header {
+      background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-navy) 60%, var(--primary-light) 100%);
+      color: #ffffff;
+      padding: 24px 32px;
+      box-shadow: var(--shadow-md);
+      border-bottom: 3px solid var(--accent-blue);
+    }
+
+    .header-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .header-title-box h1 {
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-title-box h1 svg {
+      flex-shrink: 0;
+    }
+
+    .header-title-box p {
+      font-size: 0.95rem;
+      color: #93c5fd;
+      margin-top: 4px;
+    }
+
+    .meta-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .badge-inst {
+      background: rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      padding: 5px 12px;
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      color: #e2e8f0;
+    }
+
+    .badge-inst.highlight {
+      background: rgba(37, 99, 235, 0.35);
+      border-color: #60a5fa;
+      color: #ffffff;
+    }
+
+    /* Pestañas de Navegación */
+    .nav-tabs-container {
+      background: #ffffff;
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .nav-tabs {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      gap: 4px;
+      padding: 0 24px;
+      overflow-x: auto;
+    }
+
+    .tab-button {
+      background: none;
+      border: none;
+      padding: 14px 20px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .tab-button:hover {
+      color: var(--primary-navy);
+      background-color: #f1f5f9;
+    }
+
+    .tab-button.active {
+      color: var(--accent-blue);
+      border-bottom-color: var(--accent-blue);
+      background-color: #eff6ff;
+    }
+
+    /* Contenedor Principal */
+    main.app-main {
+      max-width: 1400px;
+      margin: 24px auto;
+      padding: 0 24px;
+    }
+
+    .tab-panel {
+      display: none;
+      animation: fadeIn 0.25s ease-in-out;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Estilos de Tarjetas */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--primary-navy);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 10px;
+    }
+
+    /* Formularios y Controles */
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+
+    .form-group .hint {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border-dark);
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+      background-color: #ffffff;
+      color: var(--text-main);
+      transition: border-color 0.15s ease;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.18s ease;
+    }
+
+    .btn-primary {
+      background: var(--accent-blue);
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+    }
+
+    .btn-primary:hover {
+      background: #1d4ed8;
+      box-shadow: 0 4px 10px rgba(37, 99, 235, 0.45);
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover {
+      background: #cbd5e1;
+    }
+
+    .btn-danger {
+      background: var(--accent-red);
+      color: #ffffff;
+    }
+
+    .btn-success {
+      background: var(--accent-green);
+      color: #ffffff;
+    }
+
+    .btn-block {
+      width: 100%;
+    }
+
+    /* Grid Layouts */
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 1024px) {
+      .grid-2col {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* SVG de Arquitectura */
+    .svg-diagram-wrapper {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      overflow-x: auto;
+      text-align: center;
+    }
+
+    .svg-diagram-wrapper svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* Animación y Controles */
+    .anim-control-bar {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 14px 20px;
+      margin-bottom: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .anim-buttons {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .clock-display {
+      background: var(--primary-navy);
+      color: #ffffff;
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      min-width: 140px;
+      text-align: center;
+      border: 1px solid #1e3a5f;
+    }
+
+    .scrubber-container {
+      flex: 1;
+      min-width: 200px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .slider-timeline {
+      flex: 1;
+      accent-color: var(--accent-blue);
+      cursor: pointer;
+    }
+
+    .anim-layout {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+    }
+
+    @media (max-width: 1100px) {
+      .anim-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .canvas-container {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      position: relative;
+      margin-bottom: 16px;
+    }
+
+    .canvas-title {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--primary-navy);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      border-radius: 4px;
+    }
+
+    /* Panel Lateral de Estado */
+    .state-side-panel {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      max-height: 700px;
+      overflow-y: auto;
+    }
+
+    .conn-card-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+      margin-bottom: 20px;
+    }
+
+    .conn-card {
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      background: #f8fafc;
+      transition: all 0.15s ease;
+    }
+
+    .conn-card.busy-lec {
+      border-left: 4px solid var(--accent-blue);
+      background: #f0f7ff;
+    }
+
+    .conn-card.busy-pes {
+      border-left: 4px solid var(--accent-amber);
+      background: #fdf8ee;
+    }
+
+    .conn-card.free {
+      border-left: 4px solid var(--accent-green);
+      background: #f0fdf4;
+    }
+
+    .conn-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .progress-bar-bg {
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--accent-blue);
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+
+    .queue-list {
+      max-height: 220px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .queue-item {
+      font-size: 0.78rem;
+      padding: 6px 10px;
+      border-radius: 4px;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .queue-item.near-timeout {
+      border-color: var(--accent-red);
+      background: var(--accent-red-light);
+      color: var(--accent-red);
+      font-weight: 600;
+    }
+
+    /* Tooltip Flotante para Gantt */
+    #gantt-tooltip {
+      position: absolute;
+      background: rgba(15, 41, 66, 0.95);
+      color: #ffffff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      pointer-events: none;
+      display: none;
+      z-index: 100;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.15);
+      line-height: 1.4;
+    }
+
+    /* Pestaña 3: Tarjetas KPI */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .kpi-card {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.15s ease;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .kpi-card .kpi-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .kpi-card .kpi-value {
+      font-size: 1.7rem;
+      font-weight: 700;
+      color: var(--primary-navy);
+      margin: 8px 0 4px 0;
+    }
+
+    .kpi-card .kpi-sub {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+    }
+
+    .kpi-card.success .kpi-value { color: var(--accent-green); }
+    .kpi-card.warning .kpi-value { color: var(--accent-amber); }
+    .kpi-card.danger .kpi-value { color: var(--accent-red); }
+
+    /* Tablas Analíticas */
+    .table-container {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow-x: auto;
+      margin-bottom: 20px;
+    }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+
+    table.data-table th {
+      background: #f1f5f9;
+      color: var(--primary-navy);
+      font-weight: 700;
+      padding: 10px 14px;
+      border-bottom: 2px solid var(--border-color);
+      white-space: nowrap;
+    }
+
+    table.data-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      color: var(--text-main);
+      white-space: nowrap;
+    }
+
+    table.data-table tr:hover {
+      background-color: #f8fafc;
+    }
+
+    .tag-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    .tag-lec { background: var(--accent-blue-light); color: var(--accent-blue); }
+    .tag-pes { background: var(--accent-amber-light); color: var(--accent-amber); }
+    .tag-fail { background: var(--accent-red-light); color: var(--accent-red); }
+    .tag-ok { background: var(--accent-green-light); color: var(--accent-green); }
+
+    /* Barra de Progreso */
+    .progress-bar-container {
+      width: 100%;
+      height: 10px;
+      background: #e2e8f0;
+      border-radius: 9999px;
+      overflow: hidden;
+      margin: 12px 0 20px 0;
+      display: none;
+    }
+
+    .progress-bar-active {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+      width: 0%;
+      transition: width 0.15s ease;
+    }
+
+    /* Footer */
+    footer.inst-footer {
+      text-align: center;
+      margin-top: 40px;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      border-top: 1px solid var(--border-color);
+      padding-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- CABECERA INSTITUCIONAL -->
+  <header class="inst-header">
+    <div class="header-content">
+      <div class="header-top">
+        <div class="header-title-box">
+          <h1>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+            </svg>
+            Simulador de Pool de Conexiones a Base de Datos (HikariCP / PostgreSQL)
+          </h1>
+          <p>Modelado de Eventos Discretos (DES) — Concurrencia, Cola de Espera y Timeouts SQL</p>
+        </div>
+        <div class="meta-badges">
+          <span class="badge-inst">Modelos y Simulación</span>
+          <span class="badge-inst">Docente: Rivas Peña, Marcos Hernan</span>
+          <span class="badge-inst highlight">Alumno: Sebastián Huaringa Goicochea</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- BARRA DE PESTAÑAS -->
+  <nav class="nav-tabs-container">
+    <div class="nav-tabs">
+      <button class="tab-button active" onclick="switchTab('modelo')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+        1. Modelo del Proceso
+      </button>
+      <button class="tab-button" onclick="switchTab('animacion')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+        2. Ejecución Animada
+      </button>
+      <button class="tab-button" onclick="switchTab('resultados')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+        3. Resultados (1 Réplica)
+      </button>
+      <button class="tab-button" onclick="switchTab('comparacion')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>
+        4. Comparación de Escenarios (30 Réplicas)
+      </button>
+    </div>
+  </nav>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="app-main">
+
+    <!-- PESTAÑA 1: MODELO DEL PROCESO -->
+    <section id="tab-modelo" class="tab-panel active">
+      <div class="grid-2col">
+        <!-- Panel Izquierdo: Configuración y Parámetros -->
+        <div class="card">
+          <div class="card-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Parámetros de Simulación
+          </div>
+
+          <div class="form-group">
+            <label for="select-escenario">Escenario Predefinido</label>
+            <select id="select-escenario" class="form-control" onchange="cargarEscenario(this.value)">
+              <option value="1">1. Base (c=4, FIFO, 80 req/s, timeout=50ms)</option>
+              <option value="2">2. Ampliar Pool (c=6, FIFO)</option>
+              <option value="3">3. Prioridad a Lecturas (c=4, PRIORIDAD)</option>
+              <option value="4">4. Optimización SQL - Índices (c=4, media_pes=45ms)</option>
+              <option value="5">5. Pico de Tráfico (c=4, 130 req/s)</option>
+              <option value="6">6. Pico + c=6 + Índices SQL (130 req/s, media_pes=45ms)</option>
+              <option value="custom">-- Personalizado --</option>
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="inp-c">Tamaño Pool (c)</label>
+              <input type="number" id="inp-c" class="form-control num-tabular" min="1" max="20" value="4" onchange="marcarPersonalizado()">
+              <div class="hint">Conexiones físicas</div>
+            </div>
+            <div class="form-group">
+              <label for="inp-disciplina">Disciplina Cola</label>
+              <select id="inp-disciplina" class="form-control" onchange="marcarPersonalizado()">
+                <option value="FIFO">FIFO (Orden de Llegada)</option>
+                <option value="PRIORIDAD">PRIORIDAD (Lectura primero)</option>
+              </select>
+              <div class="hint">Política de extracción</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="inp-lambda">Tasa de Arribo (req/s)</label>
+              <input type="number" id="inp-lambda" class="form-control num-tabular" min="1" max="300" value="80" onchange="marcarPersonalizado()">
+              <div class="hint">Tasa media Poisson</div>
+            </div>
+            <div class="form-group">
+              <label for="inp-timeout">Timeout Conexión (ms)</label>
+              <input type="number" id="inp-timeout" class="form-control num-tabular" min="5" max="500" value="50" onchange="marcarPersonalizado()">
+              <div class="hint">Espera máxima en cola</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="inp-pPesada">% Consultas Pesadas (p)</label>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="range" id="inp-pPesada" min="0" max="100" value="25" style="flex:1" oninput="document.getElementById('lbl-pPesada').textContent = this.value + '%'; marcarPersonalizado()">
+              <span id="lbl-pPesada" class="num-tabular" style="font-weight: 600; width: 45px;">25%</span>
+            </div>
+            <div class="hint">Probabilidad Bernoulli</div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="inp-mediaLec">Media Lectura (ms)</label>
+              <input type="number" id="inp-mediaLec" class="form-control num-tabular" min="1" max="200" value="20" onchange="marcarPersonalizado()">
+              <div class="hint">Lognormal (CV = 0.5)</div>
+            </div>
+            <div class="form-group">
+              <label for="inp-mediaPes">Media Pesada (ms)</label>
+              <input type="number" id="inp-mediaPes" class="form-control num-tabular" min="1" max="500" value="90" onchange="marcarPersonalizado()">
+              <div class="hint">Lognormal (CV = 0.6)</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="inp-horizonte">Horizonte T (s)</label>
+              <input type="number" id="inp-horizonte" class="form-control num-tabular" min="5" max="300" value="60" onchange="marcarPersonalizado()">
+              <div class="hint">Tiempo simulado</div>
+            </div>
+            <div class="form-group">
+              <label for="inp-semilla">Semilla PRNG</label>
+              <input type="number" id="inp-semilla" class="form-control num-tabular" value="42" onchange="marcarPersonalizado()">
+              <div class="hint">Mulberry32 determinista</div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-block" style="margin-top: 10px;" onclick="ejecutarDesdePestana1()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            ▶ Ejecutar Simulación
+          </button>
+        </div>
+
+        <!-- Panel Derecho: Arquitectura SVG y Explicación Teórica -->
+        <div>
+          <!-- Diagrama SVG Interactivo -->
+          <div class="card">
+            <div class="card-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              Arquitectura del Proceso HikariCP / PostgreSQL
+            </div>
+            <div class="svg-diagram-wrapper">
+              <svg viewBox="0 0 740 260" id="svg-architecture">
+                <defs>
+                  <linearGradient id="gradClient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#3b82f6"/>
+                    <stop offset="100%" stop-color="#1d4ed8"/>
+                  </linearGradient>
+                  <linearGradient id="gradPool" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#0f2942"/>
+                    <stop offset="100%" stop-color="#1b3d61"/>
+                  </linearGradient>
+                  <linearGradient id="gradDb" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#059669"/>
+                    <stop offset="100%" stop-color="#047857"/>
+                  </linearGradient>
+                  <linearGradient id="gradTimeout" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#dc2626"/>
+                    <stop offset="100%" stop-color="#991b1b"/>
+                  </linearGradient>
+                  <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b"/>
+                  </marker>
+                  <marker id="arrow-red" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 1 L 10 5 L 0 9 z" fill="#dc2626"/>
+                  </marker>
+                </defs>
+
+                <!-- 1. Clientes / Backend API -->
+                <rect x="20" y="45" width="130" height="85" rx="8" fill="url(#gradClient)" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"/>
+                <text x="85" y="75" fill="#ffffff" font-size="13" font-weight="700" text-anchor="middle">API Backend</text>
+                <text x="85" y="93" fill="#bfdbfe" font-size="11" text-anchor="middle">Clientes / Hilos</text>
+                <text x="85" y="112" fill="#ffffff" font-size="10.5" font-weight="600" text-anchor="middle" id="svg-rate-label">Tasa: 80 req/s</text>
+
+                <!-- Flecha Llegada -->
+                <line x1="150" y1="87" x2="198" y2="87" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+                <!-- 2. Cola de Espera HikariCP -->
+                <rect x="205" y="45" width="145" height="85" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="4 2"/>
+                <text x="277" y="70" fill="#0f2942" font-size="12.5" font-weight="700" text-anchor="middle">Cola de Espera</text>
+                <text x="277" y="88" fill="#2563eb" font-size="11" font-weight="600" text-anchor="middle" id="svg-disc-label">FIFO</text>
+                <text x="277" y="112" fill="#64748b" font-size="10" text-anchor="middle" id="svg-timeout-label">Timeout: 50 ms</text>
+
+                <!-- Flecha Adquisición Exitosa -->
+                <line x1="350" y1="87" x2="398" y2="87" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+                <!-- Bifurcación Abajo: Timeouts -->
+                <line x1="277" y1="130" x2="277" y2="182" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="3 3" marker-end="url(#arrow-red)"/>
+                <rect x="195" y="188" width="165" height="58" rx="8" fill="url(#gradTimeout)"/>
+                <text x="277" y="210" fill="#ffffff" font-size="11.5" font-weight="700" text-anchor="middle">✕ ConnectionTimeout</text>
+                <text x="277" y="228" fill="#fecaca" font-size="10" text-anchor="middle">Petición Abortada (Espera &ge; Timeout)</text>
+
+                <!-- 3. Connection Pool (HikariCP) -->
+                <rect x="405" y="35" width="160" height="105" rx="8" fill="url(#gradPool)" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"/>
+                <text x="485" y="62" fill="#ffffff" font-size="13" font-weight="700" text-anchor="middle">Pool HikariCP</text>
+                <text x="485" y="80" fill="#93c5fd" font-size="11" text-anchor="middle" id="svg-pool-cap">c = 4 Conexiones</text>
+
+                <!-- Slots visuales de conexiones -->
+                <g id="svg-conn-slots" transform="translate(425, 95)">
+                  <!-- Inyectado dinámicamente -->
+                </g>
+
+                <!-- Flecha Ejecución SQL -->
+                <line x1="565" y1="87" x2="608" y2="87" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+                <!-- 4. PostgreSQL Database -->
+                <rect x="615" y="45" width="115" height="85" rx="8" fill="url(#gradDb)" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"/>
+                <text x="672" y="72" fill="#ffffff" font-size="13" font-weight="700" text-anchor="middle">PostgreSQL</text>
+                <text x="672" y="90" fill="#a7f3d0" font-size="10.5" text-anchor="middle">Servicio SQL</text>
+                <text x="672" y="112" fill="#ffffff" font-size="9.5" text-anchor="middle" id="svg-sql-stats">20ms / 90ms</text>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Tarjetas Explicativas -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="card" style="margin-bottom: 0;">
+              <div class="card-title" style="font-size: 0.95rem;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                Distribuciones de Probabilidad
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 8px;">
+                <strong>Llegadas Poisson:</strong> Tasa de llegadas media (req/s). Tiempo entre llegadas con distribución Exponencial: X = &minus;(1000 / Tasa) &times; ln(U), donde U es uniforme entre 0 y 1.
+              </p>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 8px;">
+                <strong>Clasificación de Consultas:</strong> Proceso Bernoulli con probabilidad p (pesadas). Si U &lt; p la consulta es PESADA (escritura/reporte), de lo contrario es LECTURA (OLTP rápida).
+              </p>
+              <p style="font-size: 0.82rem; color: var(--text-muted);">
+                <strong>Duración SQL:</strong> Distribución Lognormal generada mediante el método Box-Muller: Z = &radic;(&minus;2 &middot; ln U<sub>1</sub>) &middot; cos(2&pi; U<sub>2</sub>), Duración = exp(&mu; + &sigma;&middot;Z).
+                <br>&bull; LECTURA: media = 20 ms, CV = 0.5.
+                <br>&bull; PESADA: media = 90 ms, CV = 0.6.
+              </p>
+            </div>
+
+            <div class="card" style="margin-bottom: 0;">
+              <div class="card-title" style="font-size: 0.95rem;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                Reglas y Supuestos del Modelo
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 8px;">
+                <strong>Adquisición de Conexión:</strong> Si al llegar una petición existe una conexión física libre en el pool, se asigna de inmediato sin espera (Wq = 0 ms). Si las c conexiones están ocupadas, entra en cola de espera.
+              </p>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 8px;">
+                <strong>Timeouts Estrictos:</strong> Si una petición permanece en cola un tiempo &ge; timeout (ms), el hilo cliente lanza ConnectionTimeoutException y sale del sistema sin ejecutarse en PostgreSQL.
+              </p>
+              <p style="font-size: 0.82rem; color: var(--text-muted);">
+                <strong>Desempate de Eventos Simultáneos:</strong> Cuando eventos coinciden en el mismo instante de reloj, se atienden por prioridad: 1° FIN_SQL (libera pool), 2° TIMEOUT, 3° LLEGADA.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PESTAÑA 2: EJECUCIÓN ANIMADA -->
+    <section id="tab-animacion" class="tab-panel">
+      <!-- Barra de Control de Animación -->
+      <div class="anim-control-bar">
+        <div class="anim-buttons">
+          <button id="btn-play" class="btn btn-primary" onclick="togglePlay()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span id="lbl-play">Reproducir</span>
+          </button>
+          <button class="btn btn-secondary" onclick="restartAnimation()" title="Reiniciar al inicio">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+          </button>
+        </div>
+
+        <div class="scrubber-container">
+          <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-muted);">Línea de Tiempo:</span>
+          <input type="range" id="slider-timeline" class="slider-timeline" min="0" max="60000" step="10" value="0" oninput="onScrub(this.value)">
+        </div>
+
+        <div class="clock-display" id="clock-display">00:00.000 s</div>
+
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-muted);">Velocidad:</span>
+          <select id="select-speed" class="form-control" style="width: 80px; padding: 4px 8px; font-size: 0.82rem;" onchange="changeSpeed(this.value)">
+            <option value="0.3" selected>x0.3</option>
+            <option value="0.5">x0.5</option>
+            <option value="1">x1.0</option>
+            <option value="2">x2.0</option>
+            <option value="5">x5.0</option>
+            <option value="10">x10.0</option>
+          </select>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-muted);">Ventana:</span>
+          <select id="select-window" class="form-control" style="width: 85px; padding: 4px 8px; font-size: 0.82rem;" onchange="changeWindow(this.value)">
+            <option value="2000" selected>2 s</option>
+            <option value="5000">5 s</option>
+            <option value="15000">15 s</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Layout Principal: Gráficos de Gantt & Cola vs Panel Lateral -->
+      <div class="anim-layout">
+        <div>
+          <!-- Canvas Gantt Chart -->
+          <div class="canvas-container">
+            <div class="canvas-title">
+              <span>Diagrama de Gantt — Conexiones Físicas de Base de Datos</span>
+              <div style="display: flex; gap: 14px; font-size: 0.75rem;">
+                <span style="display: flex; align-items: center; gap: 4px;">
+                  <span style="width: 10px; height: 10px; background: var(--accent-blue); border-radius: 2px;"></span> Lectura Rápida
+                </span>
+                <span style="display: flex; align-items: center; gap: 4px;">
+                  <span style="width: 10px; height: 10px; background: var(--accent-amber); border-radius: 2px;"></span> Pesada / Reporte
+                </span>
+                <span style="display: flex; align-items: center; gap: 4px;">
+                  <span style="width: 10px; height: 10px; background: var(--accent-red); border-radius: 2px;"></span> Timeout (✕)
+                </span>
+              </div>
+            </div>
+            <canvas id="canvas-gantt" height="260"></canvas>
+            <div id="gantt-tooltip"></div>
+          </div>
+
+          <!-- Canvas Longitud de Cola -->
+          <div class="canvas-container">
+            <div class="canvas-title">
+              <span>Longitud de Cola en Vivo Q(t) en la Ventana Activa</span>
+              <span id="badge-live-q" class="tag-pill tag-lec num-tabular" style="font-size: 0.8rem;">En cola: 0 req</span>
+            </div>
+            <canvas id="canvas-queue-live" height="110"></canvas>
+          </div>
+        </div>
+
+        <!-- Panel Lateral: Estado Instantáneo del Pool y Cola -->
+        <div class="state-side-panel">
+          <div style="font-size: 0.92rem; font-weight: 700; color: var(--primary-navy); margin-bottom: 8px;">
+            Estado Instantáneo del Pool
+          </div>
+          <div class="conn-card-list" id="side-conn-list">
+            <!-- Conexiones inyectadas dinámicamente -->
+          </div>
+
+          <div style="font-size: 0.92rem; font-weight: 700; color: var(--primary-navy); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <span>Cola de Espera</span>
+            <span id="side-queue-count" class="tag-pill tag-lec num-tabular">0 peticiones</span>
+          </div>
+          <div class="queue-list" id="side-queue-list">
+            <div style="color: var(--text-muted); font-size: 0.8rem; font-style: italic; text-align: center; padding: 12px 0;">
+              Cola vacía en este instante
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PESTAÑA 3: RESULTADOS (1 RÉPLICA) -->
+    <section id="tab-resultados" class="tab-panel">
+      <!-- 6 Tarjetas KPI -->
+      <div class="kpi-grid">
+        <div class="kpi-card" id="kpi-card-exito">
+          <div class="kpi-label">Tasa de Éxito Total</div>
+          <div class="kpi-value num-tabular" id="kpi-exito">0.0%</div>
+          <div class="kpi-sub" id="kpi-exito-sub">Peticiones atendidas sin timeout</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Espera Media en Cola (Wq)</div>
+          <div class="kpi-value num-tabular" id="kpi-wait">0.0 ms</div>
+          <div class="kpi-sub">Tiempo antes de obtener conexión</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Latencia Total p95</div>
+          <div class="kpi-value num-tabular" id="kpi-p95">0.0 ms</div>
+          <div class="kpi-sub">Percentil 95 (Espera + Duración)</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Utilización del Pool (Ocupación)</div>
+          <div class="kpi-value num-tabular" id="kpi-util">0.0%</div>
+          <div class="kpi-sub">Ocupación media de conexiones</div>
+        </div>
+        <div class="kpi-card" id="kpi-card-timeouts">
+          <div class="kpi-label">Timeouts de Conexión</div>
+          <div class="kpi-value num-tabular" id="kpi-timeouts">0</div>
+          <div class="kpi-sub" id="kpi-timeouts-sub">0.0% de total de peticiones</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Longitud Media de Cola (Lq)</div>
+          <div class="kpi-value num-tabular" id="kpi-qlen">0.00</div>
+          <div class="kpi-sub">Peticiones promedio en cola</div>
+        </div>
+      </div>
+
+      <!-- Tabla de Desglose Lecturas vs Pesadas -->
+      <div class="card">
+        <div class="card-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          Desglose por Tipo de Consulta
+        </div>
+        <div class="table-container">
+          <table class="data-table num-tabular" id="table-breakdown">
+            <thead>
+              <tr>
+                <th>Tipo de Consulta</th>
+                <th>Total Arribos</th>
+                <th>Atendidas con Éxito</th>
+                <th>Timeouts (Fallo)</th>
+                <th>Tasa de Éxito (%)</th>
+                <th>Espera Media (Wq, ms)</th>
+                <th>Media SQL (ms)</th>
+                <th>Latencia Total Media (ms)</th>
+                <th>Latencia p95 (ms)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Inyectado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Gráficos Analíticos de 1 Réplica -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+        <div class="card" style="margin-bottom: 0;">
+          <div class="card-title" style="font-size: 0.95rem;">
+            <span>Histograma de Espera en Cola (Wq)</span>
+            <span class="tag-pill tag-fail" id="lbl-hist-timeout">Corte Timeout = 50ms</span>
+          </div>
+          <canvas id="canvas-hist-wait" height="220"></canvas>
+        </div>
+
+        <div class="card" style="margin-bottom: 0;">
+          <div class="card-title" style="font-size: 0.95rem;">
+            <span>Evolución de Cola Q(t) en el Horizonte Completo</span>
+            <span class="tag-pill tag-lec" id="lbl-full-horizon">0 a 60 s</span>
+          </div>
+          <canvas id="canvas-full-queue" height="220"></canvas>
+        </div>
+      </div>
+
+      <!-- Traza Cronológica de los Primeros 15 Eventos -->
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+          <div class="card-title" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Traza Cronológica de los Primeros 15 Eventos (Verificación Manual)
+          </div>
+          <button class="btn btn-secondary" onclick="exportarCSVReplica()" style="font-size: 0.82rem; padding: 6px 14px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            ⬇ Descargar Resultados CSV
+          </button>
+        </div>
+        <div class="table-container">
+          <table class="data-table num-tabular" id="table-trace">
+            <thead>
+              <tr>
+                <th style="width: 60px;">Paso</th>
+                <th style="width: 120px;">Reloj (ms)</th>
+                <th style="width: 130px;">Evento</th>
+                <th>Detalle de la Operación</th>
+                <th style="width: 120px;">Pool Ocupado</th>
+                <th style="width: 100px;">En Cola</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Inyectado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PESTAÑA 4: COMPARACIÓN DE ESCENARIOS (30 RÉPLICAS) -->
+    <section id="tab-comparacion" class="tab-panel">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <div class="card-title" style="margin-bottom: 4px; border-bottom: none; padding-bottom: 0;">
+              Comparación Estadística Rigurosa — 30 Réplicas (Semillas 42 a 71)
+            </div>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">
+              Técnica de <strong>Números Aleatorios Comunes (CRN)</strong> para reducción de varianza. Intervalo de Confianza al 95% (t = 2.045 con 29 grados de libertad).
+            </p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-primary" id="btn-run-batch" onclick="ejecutarComparacion30Replicas()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              ⚡ Ejecutar 30 Réplicas (6 Escenarios)
+            </button>
+            <button class="btn btn-secondary" onclick="exportarCSVComparacion()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              ⬇ Exportar Tabla CSV
+            </button>
+          </div>
+        </div>
+
+        <div class="progress-bar-container" id="batch-progress-container">
+          <div class="progress-bar-active" id="batch-progress-bar"></div>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table num-tabular" id="table-batch-stats">
+            <thead>
+              <tr>
+                <th>Escenario</th>
+                <th>Configuración Clave</th>
+                <th>Éxito Total (%) [IC 95%]</th>
+                <th>Éxito Lecturas (%)</th>
+                <th>Éxito Pesadas (%)</th>
+                <th>Espera Media (Wq, ms)</th>
+                <th>Latencia p95 (ms)</th>
+                <th>Utilización Pool (%)</th>
+                <th>Cola Media (Lq)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Inyectado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Gráficos Comparativos con Barras de Error -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div class="card">
+          <div class="card-title" style="font-size: 0.95rem;">
+            Tasa de Éxito Total (%) con Bigotes de Error (IC 95%)
+          </div>
+          <canvas id="canvas-batch-exito" height="280"></canvas>
+        </div>
+
+        <div class="card">
+          <div class="card-title" style="font-size: 0.95rem;">
+            Espera Media en Cola (Wq, ms) con Bigotes de Error (IC 95%)
+          </div>
+          <canvas id="canvas-batch-wait" height="280"></canvas>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="inst-footer">
+    Asignatura: Modelos y Simulación | Docente: Rivas Peña, Marcos Hernan | Estudiante: Sebastián Huaringa Goicochea
+  </footer>
+
+  <!-- SCRIPT DEL MOTOR DES Y LA APLICACIÓN -->
+  <script>
+    /* =====================================================================
+       1. GENERADOR PSEUDOALEATORIO MULBERRY32 Y DISTRIBUCIONES
+       ===================================================================== */
+    function createPRNG(seed) {
+      let s = (seed >>> 0) || 1;
+      return function() {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    // Exponencial por Transformada Inversa: X = -media * ln(U)
+    function sampleExp(prng, mean) {
+      const u = Math.max(1e-12, Math.min(1 - 1e-12, prng()));
+      return -mean * Math.log(u);
+    }
+
+    // Lognormal mediante Transformación Box-Muller
+    function sampleLognormal(prng, mean, cv) {
+      const cv2 = cv * cv;
+      const sigma2 = Math.log(1 + cv2);
+      const sigma = Math.sqrt(sigma2);
+      const mu = Math.log(mean) - sigma2 / 2;
+
+      const u1 = Math.max(1e-12, Math.min(1 - 1e-12, prng()));
+      const u2 = prng();
+      const z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+      return Math.exp(mu + sigma * z);
+    }
+
+    /* =====================================================================
+       2. COLA DE PRIORIDAD (MIN-HEAP) PARA LA LISTA DE EVENTOS FUTUROS (FEL)
+       ===================================================================== */
+    class MinHeap {
+      constructor() {
+        this.heap = [];
+      }
+      push(node) {
+        this.heap.push(node);
+        this._up(this.heap.length - 1);
+      }
+      pop() {
+        if (this.heap.length === 0) return null;
+        const top = this.heap[0];
+        const bottom = this.heap.pop();
+        if (this.heap.length > 0) {
+          this.heap[0] = bottom;
+          this._down(0);
+        }
+        return top;
+      }
+      get size() {
+        return this.heap.length;
+      }
+      _up(i) {
+        while (i > 0) {
+          const p = (i - 1) >> 1;
+          if (this._compare(this.heap[i], this.heap[p]) < 0) {
+            const tmp = this.heap[i];
+            this.heap[i] = this.heap[p];
+            this.heap[p] = tmp;
+            i = p;
+          } else break;
+        }
+      }
+      _down(i) {
+        const len = this.heap.length;
+        while ((i << 1) + 1 < len) {
+          let left = (i << 1) + 1;
+          let right = left + 1;
+          let best = left;
+          if (right < len && this._compare(this.heap[right], this.heap[left]) < 0) {
+            best = right;
+          }
+          if (this._compare(this.heap[best], this.heap[i]) < 0) {
+            const tmp = this.heap[i];
+            this.heap[i] = this.heap[best];
+            this.heap[best] = tmp;
+            i = best;
+          } else break;
+        }
+      }
+      _compare(a, b) {
+        if (Math.abs(a.time - b.time) > 1e-9) {
+          return a.time - b.time;
+        }
+        if (a.priority !== b.priority) {
+          return a.priority - b.priority;
+        }
+        return a.id - b.id;
+      }
+    }
+
+    /* =====================================================================
+       3. MOTOR DE SIMULACIÓN DE EVENTOS DISCRETOS (DES)
+       ===================================================================== */
+    const ESCENARIOS_CONFIG = {
+      "1": { name: "1. Base (c=4, FIFO)", c: 4, lambda: 80, timeout: 50, pPesada: 0.25, mediaLec: 20, mediaPes: 90, disciplina: "FIFO" },
+      "2": { name: "2. Ampliar Pool (c=6)", c: 6, lambda: 80, timeout: 50, pPesada: 0.25, mediaLec: 20, mediaPes: 90, disciplina: "FIFO" },
+      "3": { name: "3. Prioridad a Lecturas", c: 4, lambda: 80, timeout: 50, pPesada: 0.25, mediaLec: 20, mediaPes: 90, disciplina: "PRIORIDAD" },
+      "4": { name: "4. Optimización SQL (Índices)", c: 4, lambda: 80, timeout: 50, pPesada: 0.25, mediaLec: 20, mediaPes: 45, disciplina: "FIFO" },
+      "5": { name: "5. Pico de Tráfico (130 req/s)", c: 4, lambda: 130, timeout: 50, pPesada: 0.25, mediaLec: 20, mediaPes: 90, disciplina: "FIFO" },
+      "6": { name: "6. Pico + c=6 + Índices SQL", c: 6, lambda: 130, timeout: 50, pPesada: 0.25, mediaLec: 20, mediaPes: 45, disciplina: "FIFO" }
+    };
+
+    function runSimulation(params) {
+      const {
+        c = 4,
+        lambda = 80,
+        timeout = 50,
+        pPesada = 0.25,
+        mediaLec = 20,
+        mediaPes = 90,
+        cvLec = 0.5,
+        cvPes = 0.6,
+        disciplina = "FIFO",
+        horizonte = 60000,
+        semilla = 42
+      } = params;
+
+      const prng = createPRNG(semilla);
+      const heap = new MinHeap();
+      let eventSeq = 0;
+
+      function schedule(time, priority, type, req, connId = -1) {
+        heap.push({
+          id: ++eventSeq,
+          time,
+          priority,
+          type,
+          req,
+          connId
+        });
+      }
+
+      // Estado del sistema
+      let clock = 0;
+      let lastClock = 0;
+      const pool = new Array(c).fill(null);
+      const queue = [];
+
+      // Integrales y estadísticas
+      let busyIntegral = 0;
+      let queueIntegral = 0;
+      let reqCount = 0;
+      const allRequests = [];
+      const trace = [];
+
+      // Historial para gráfico de cola global
+      const queueHistory = [{ t: 0, q: 0 }];
+
+      // Programar primera llegada
+      const firstArr = sampleExp(prng, 1000 / lambda);
+      schedule(firstArr, 2, "LLEGADA", null);
+
+      while (heap.size > 0) {
+        const ev = heap.pop();
+
+        if (ev.time > horizonte) {
+          const dt = horizonte - lastClock;
+          if (dt > 0) {
+            const occupied = pool.filter(p => p !== null).length;
+            busyIntegral += occupied * dt;
+            queueIntegral += queue.length * dt;
+            lastClock = horizonte;
+          }
+          break;
+        }
+
+        const dt = ev.time - lastClock;
+        if (dt > 0) {
+          const occupied = pool.filter(p => p !== null).length;
+          busyIntegral += occupied * dt;
+          queueIntegral += queue.length * dt;
+          lastClock = ev.time;
+        }
+        clock = ev.time;
+
+        if (ev.type === "FIN_SQL") {
+          const finishedReq = ev.req;
+          finishedReq.status = "EXITO";
+          finishedReq.completionTime = clock;
+          const connId = ev.connId;
+          pool[connId] = null;
+
+          if (trace.length < 15) {
+            trace.push({
+              paso: trace.length + 1,
+              reloj: clock,
+              evento: "FIN_SQL",
+              detalle: `Petición #${finishedReq.id} (${finishedReq.type}) finaliza SQL en Conexión #${connId + 1}`,
+              poolOcupado: `${pool.filter(p => p !== null).length} / ${c}`,
+              enCola: queue.length
+            });
+          }
+
+          // Si hay peticiones en espera, atender según disciplina
+          if (queue.length > 0) {
+            let nextIndex = 0;
+            if (disciplina === "PRIORIDAD") {
+              const lecIndex = queue.findIndex(r => r.type === "LECTURA");
+              if (lecIndex !== -1) {
+                nextIndex = lecIndex;
+              }
+            }
+
+            const nextReq = queue.splice(nextIndex, 1)[0];
+            nextReq.cancelledTimeout = true;
+            nextReq.connId = connId;
+            nextReq.serviceStartTime = clock;
+            nextReq.waitTime = clock - nextReq.arrivalTime;
+            pool[connId] = nextReq;
+
+            schedule(clock + nextReq.sqlDuration, 0, "FIN_SQL", nextReq, connId);
+            queueHistory.push({ t: clock, q: queue.length });
+
+            if (trace.length < 15) {
+              trace.push({
+                paso: trace.length + 1,
+                reloj: clock,
+                evento: "ASIGNACIÓN_COLA",
+                detalle: `Petición #${nextReq.id} (${nextReq.type}) pasa de cola a Conexión #${connId + 1} (Wq=${nextReq.waitTime.toFixed(1)}ms)`,
+                poolOcupado: `${pool.filter(p => p !== null).length} / ${c}`,
+                enCola: queue.length
+              });
+            }
+          }
+        } else if (ev.type === "TIMEOUT") {
+          const req = ev.req;
+          if (!req.cancelledTimeout && req.status === "EN_COLA") {
+            const idx = queue.indexOf(req);
+            if (idx !== -1) {
+              queue.splice(idx, 1);
+            }
+            req.status = "TIMEOUT";
+            req.completionTime = clock;
+            req.waitTime = timeout;
+
+            queueHistory.push({ t: clock, q: queue.length });
+
+            if (trace.length < 15) {
+              trace.push({
+                paso: trace.length + 1,
+                reloj: clock,
+                evento: "TIMEOUT",
+                detalle: `Petición #${req.id} (${req.type}) aborta por Timeout (${timeout}ms en cola)`,
+                poolOcupado: `${pool.filter(p => p !== null).length} / ${c}`,
+                enCola: queue.length
+              });
+            }
+          }
+        } else if (ev.type === "LLEGADA") {
+          const nextArr = clock + sampleExp(prng, 1000 / lambda);
+          if (nextArr <= horizonte) {
+            schedule(nextArr, 2, "LLEGADA", null);
+          }
+
+          reqCount++;
+          const isPesada = prng() < pPesada;
+          const type = isPesada ? "PESADA" : "LECTURA";
+          const duration = isPesada
+            ? sampleLognormal(prng, mediaPes, cvPes)
+            : sampleLognormal(prng, mediaLec, cvLec);
+
+          const req = {
+            id: reqCount,
+            arrivalTime: clock,
+            type,
+            sqlDuration: duration,
+            status: "EN_COLA",
+            connId: -1,
+            serviceStartTime: null,
+            completionTime: null,
+            waitTime: 0,
+            cancelledTimeout: false
+          };
+          allRequests.push(req);
+
+          // Buscar conexión libre
+          const freeConnId = pool.findIndex(p => p === null);
+          if (freeConnId !== -1) {
+            req.status = "RUNNING";
+            req.connId = freeConnId;
+            req.serviceStartTime = clock;
+            req.waitTime = 0;
+            req.cancelledTimeout = true;
+            pool[freeConnId] = req;
+
+            schedule(clock + duration, 0, "FIN_SQL", req, freeConnId);
+
+            if (trace.length < 15) {
+              trace.push({
+                paso: trace.length + 1,
+                reloj: clock,
+                evento: "LLEGADA",
+                detalle: `Petición #${req.id} (${type}) llega y toma Conexión #${freeConnId + 1} (Wq=0)`,
+                poolOcupado: `${pool.filter(p => p !== null).length} / ${c}`,
+                enCola: queue.length
+              });
+            }
+          } else {
+            // Pool lleno: encolar y programar timeout
+            queue.push(req);
+            schedule(clock + timeout, 1, "TIMEOUT", req);
+            queueHistory.push({ t: clock, q: queue.length });
+
+            if (trace.length < 15) {
+              trace.push({
+                paso: trace.length + 1,
+                reloj: clock,
+                evento: "LLEGADA",
+                detalle: `Petición #${req.id} (${type}) entra a Cola (Pool saturado)`,
+                poolOcupado: `${pool.filter(p => p !== null).length} / ${c}`,
+                enCola: queue.length
+              });
+            }
+          }
+        }
+      }
+
+      if (lastClock < horizonte) {
+        const dt = horizonte - lastClock;
+        const occupied = pool.filter(p => p !== null).length;
+        busyIntegral += occupied * dt;
+        queueIntegral += queue.length * dt;
+      }
+      queueHistory.push({ t: horizonte, q: queue.length });
+
+      // Cálculo de métricas
+      const total = allRequests.length;
+      const exitosas = allRequests.filter(r => r.status === "EXITO");
+      const timeouts = allRequests.filter(r => r.status === "TIMEOUT");
+
+      const lecturas = allRequests.filter(r => r.type === "LECTURA");
+      const pesadas = allRequests.filter(r => r.type === "PESADA");
+
+      const lecExitosas = lecturas.filter(r => r.status === "EXITO");
+      const pesExitosas = pesadas.filter(r => r.status === "EXITO");
+
+      const exitoTotalPct = total > 0 ? (exitosas.length / total) * 100 : 0;
+      const exitoLecPct = lecturas.length > 0 ? (lecExitosas.length / lecturas.length) * 100 : 0;
+      const exitoPesPct = pesadas.length > 0 ? (pesExitosas.length / pesadas.length) * 100 : 0;
+
+      const meanWait = total > 0 ? allRequests.reduce((a, b) => a + b.waitTime, 0) / total : 0;
+      const meanWaitLec = lecturas.length > 0 ? lecturas.reduce((a, b) => a + b.waitTime, 0) / lecturas.length : 0;
+      const meanWaitPes = pesadas.length > 0 ? pesadas.reduce((a, b) => a + b.waitTime, 0) / pesadas.length : 0;
+
+      const meanSqlLec = lecExitosas.length > 0 ? lecExitosas.reduce((a, b) => a + b.sqlDuration, 0) / lecExitosas.length : 0;
+      const meanSqlPes = pesExitosas.length > 0 ? pesExitosas.reduce((a, b) => a + b.sqlDuration, 0) / pesExitosas.length : 0;
+      const meanSqlTotal = exitosas.length > 0 ? exitosas.reduce((a, b) => a + b.sqlDuration, 0) / exitosas.length : 0;
+
+      // Latencias totales
+      function computeP95(arr) {
+        if (arr.length === 0) return 0;
+        const sorted = [...arr].sort((a, b) => a - b);
+        return sorted[Math.floor(sorted.length * 0.95)];
+      }
+
+      const latenciasTotal = allRequests.map(r => r.status === "EXITO" ? (r.waitTime + r.sqlDuration) : r.waitTime);
+      const latenciasLec = lecturas.map(r => r.status === "EXITO" ? (r.waitTime + r.sqlDuration) : r.waitTime);
+      const latenciasPes = pesadas.map(r => r.status === "EXITO" ? (r.waitTime + r.sqlDuration) : r.waitTime);
+
+      const p95Total = computeP95(latenciasTotal);
+      const p95Lec = computeP95(latenciasLec);
+      const p95Pes = computeP95(latenciasPes);
+
+      const meanLatTotal = latenciasTotal.length > 0 ? latenciasTotal.reduce((a, b) => a + b, 0) / latenciasTotal.length : 0;
+      const meanLatLec = latenciasLec.length > 0 ? latenciasLec.reduce((a, b) => a + b, 0) / latenciasLec.length : 0;
+      const meanLatPes = latenciasPes.length > 0 ? latenciasPes.reduce((a, b) => a + b, 0) / latenciasPes.length : 0;
+
+      const utilizationPct = (busyIntegral / (c * horizonte)) * 100;
+      const meanQueueLength = queueIntegral / horizonte;
+
+      return {
+        params,
+        total,
+        exitosas: exitosas.length,
+        timeouts: timeouts.length,
+        exitoTotalPct,
+        exitoLecPct,
+        exitoPesPct,
+        meanWait,
+        meanWaitLec,
+        meanWaitPes,
+        meanSqlTotal,
+        meanSqlLec,
+        meanSqlPes,
+        meanLatTotal,
+        meanLatLec,
+        meanLatPes,
+        p95Total,
+        p95Lec,
+        p95Pes,
+        utilizationPct,
+        meanQueueLength,
+        breakdown: {
+          lec: { total: lecturas.length, exitosas: lecExitosas.length, timeouts: lecturas.length - lecExitosas.length, pct: exitoLecPct, wait: meanWaitLec, sql: meanSqlLec, lat: meanLatLec, p95: p95Lec },
+          pes: { total: pesadas.length, exitosas: pesExitosas.length, timeouts: pesadas.length - pesExitosas.length, pct: exitoPesPct, wait: meanWaitPes, sql: meanSqlPes, lat: meanLatPes, p95: p95Pes },
+          all: { total, exitosas: exitosas.length, timeouts: timeouts.length, pct: exitoTotalPct, wait: meanWait, sql: meanSqlTotal, lat: meanLatTotal, p95: p95Total }
+        },
+        trace,
+        allRequests,
+        queueHistory
+      };
+    }
+
+    /* =====================================================================
+       4. ESTADO GLOBAL DE LA APLICACIÓN
+       ===================================================================== */
+    let currentParams = {
+      c: 4,
+      disciplina: "FIFO",
+      lambda: 80,
+      timeout: 50,
+      pPesada: 0.25,
+      mediaLec: 20,
+      mediaPes: 90,
+      cvLec: 0.5,
+      cvPes: 0.6,
+      horizonte: 60000,
+      semilla: 42
+    };
+
+    let currentSimResult = null;
+    let batchComparisonData = null;
+
+    // Estado de la animación en Pestaña 2
+    let animClock = 0;
+    let isPlaying = false;
+    let animSpeed = 0.3;
+    let animWindowMs = 2000;
+    let animRafId = null;
+    let lastPerfTime = null;
+
+    /* =====================================================================
+       5. UTILIDADES CANVAS (ESCALADO CON WINDOW.DEVICEPIXELRATIO)
+       ===================================================================== */
+    function setupCanvasDpi(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const cssWidth = rect.width || canvas.parentElement.clientWidth || 600;
+      const cssHeight = parseInt(canvas.getAttribute("height") || 200, 10);
+
+      canvas.width = Math.round(cssWidth * dpr);
+      canvas.height = Math.round(cssHeight * dpr);
+      canvas.style.width = cssWidth + "px";
+      canvas.style.height = cssHeight + "px";
+
+      const ctx = canvas.getContext("2d");
+      ctx.resetTransform ? ctx.resetTransform() : ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+      return { ctx, width: cssWidth, height: cssHeight, dpr };
+    }
+
+    /* =====================================================================
+       6. INTERFAZ: CAMBIO DE PESTAÑAS Y CARGA DE ESCENARIOS
+       ===================================================================== */
+    function switchTab(tabId) {
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+      document.querySelectorAll(".tab-button").forEach(b => b.classList.remove("active"));
+
+      const panel = document.getElementById("tab-" + tabId);
+      if (panel) panel.classList.add("active");
+
+      const buttons = document.querySelectorAll(".tab-button");
+      if (tabId === "modelo") buttons[0].classList.add("active");
+      if (tabId === "animacion") {
+        buttons[1].classList.add("active");
+        const speedSel = document.getElementById("select-speed");
+        if (speedSel) {
+          speedSel.value = "0.3";
+          animSpeed = 0.3;
+        }
+        const winSel = document.getElementById("select-window");
+        if (winSel) {
+          winSel.value = "2000";
+          animWindowMs = 2000;
+        }
+        renderGantt();
+        renderLiveQueue();
+        updateInstantPanel(animClock);
+      }
+      if (tabId === "resultados") {
+        buttons[2].classList.add("active");
+        renderResultsCharts();
+      }
+      if (tabId === "comparacion") {
+        buttons[3].classList.add("active");
+        if (batchComparisonData) {
+          renderBatchCharts();
+        } else {
+          ejecutarComparacion30Replicas();
+        }
+      }
+    }
+
+    function cargarEscenario(val) {
+      if (val === "custom") return;
+      const sc = ESCENARIOS_CONFIG[val];
+      if (!sc) return;
+
+      document.getElementById("inp-c").value = sc.c;
+      document.getElementById("inp-disciplina").value = sc.disciplina;
+      document.getElementById("inp-lambda").value = sc.lambda;
+      document.getElementById("inp-timeout").value = sc.timeout;
+      document.getElementById("inp-pPesada").value = Math.round(sc.pPesada * 100);
+      document.getElementById("lbl-pPesada").textContent = Math.round(sc.pPesada * 100) + "%";
+      document.getElementById("inp-mediaLec").value = sc.mediaLec;
+      document.getElementById("inp-mediaPes").value = sc.mediaPes;
+
+      actualizarParametrosDesdeInputs();
+      actualizarDiagramaSVG();
+    }
+
+    function marcarPersonalizado() {
+      document.getElementById("select-escenario").value = "custom";
+      actualizarParametrosDesdeInputs();
+      actualizarDiagramaSVG();
+    }
+
+    function actualizarParametrosDesdeInputs() {
+      currentParams.c = parseInt(document.getElementById("inp-c").value, 10) || 4;
+      currentParams.disciplina = document.getElementById("inp-disciplina").value;
+      currentParams.lambda = parseFloat(document.getElementById("inp-lambda").value) || 80;
+      currentParams.timeout = parseFloat(document.getElementById("inp-timeout").value) || 50;
+      currentParams.pPesada = (parseFloat(document.getElementById("inp-pPesada").value) || 25) / 100;
+      currentParams.mediaLec = parseFloat(document.getElementById("inp-mediaLec").value) || 20;
+      currentParams.mediaPes = parseFloat(document.getElementById("inp-mediaPes").value) || 90;
+      currentParams.horizonte = (parseFloat(document.getElementById("inp-horizonte").value) || 60) * 1000;
+      currentParams.semilla = parseInt(document.getElementById("inp-semilla").value, 10) || 42;
+
+      document.getElementById("slider-timeline").max = currentParams.horizonte;
+    }
+
+    function actualizarDiagramaSVG() {
+      const rateLbl = document.getElementById("svg-rate-label");
+      if (rateLbl) rateLbl.textContent = `Tasa: ${currentParams.lambda} req/s`;
+
+      const discLbl = document.getElementById("svg-disc-label");
+      if (discLbl) discLbl.textContent = currentParams.disciplina;
+
+      const toutLbl = document.getElementById("svg-timeout-label");
+      if (toutLbl) toutLbl.textContent = `Timeout: ${currentParams.timeout} ms`;
+
+      const poolCap = document.getElementById("svg-pool-cap");
+      if (poolCap) poolCap.textContent = `c = ${currentParams.c} Conexiones`;
+
+      const sqlStats = document.getElementById("svg-sql-stats");
+      if (sqlStats) sqlStats.textContent = `${currentParams.mediaLec}ms / ${currentParams.mediaPes}ms`;
+
+      // Renderizar slots visuales de conexiones en SVG
+      const slotsGroup = document.getElementById("svg-conn-slots");
+      if (slotsGroup) {
+        slotsGroup.innerHTML = "";
+        const c = Math.min(currentParams.c, 10);
+        const spacing = Math.min(110 / c, 18);
+        for (let i = 0; i < c; i++) {
+          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          circle.setAttribute("cx", i * spacing);
+          circle.setAttribute("cy", 10);
+          circle.setAttribute("r", 5);
+          circle.setAttribute("fill", "#60a5fa");
+          circle.setAttribute("stroke", "#ffffff");
+          circle.setAttribute("stroke-width", "1");
+          slotsGroup.appendChild(circle);
+        }
+      }
+    }
+
+    function ejecutarDesdePestana1() {
+      actualizarParametrosDesdeInputs();
+      currentSimResult = runSimulation(currentParams);
+      animClock = 0;
+      document.getElementById("slider-timeline").value = 0;
+      actualizarDisplaysReloj();
+      poblarResultados1Replica();
+      switchTab("resultados");
+    }
+
+    /* =====================================================================
+       7. PESTAÑA 2: ANIMACIÓN, GANTT INTERACTIVO Y COLA EN VIVO
+       ===================================================================== */
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      const btn = document.getElementById("btn-play");
+      const lbl = document.getElementById("lbl-play");
+      if (isPlaying) {
+        btn.classList.remove("btn-primary");
+        btn.classList.add("btn-danger");
+        lbl.textContent = "Pausar";
+        lastPerfTime = performance.now();
+        animRafId = requestAnimationFrame(animStep);
+      } else {
+        btn.classList.remove("btn-danger");
+        btn.classList.add("btn-primary");
+        lbl.textContent = "Reproducir";
+        if (animRafId) cancelAnimationFrame(animRafId);
+      }
+    }
+
+    function restartAnimation() {
+      animClock = 0;
+      document.getElementById("slider-timeline").value = 0;
+      actualizarDisplaysReloj();
+      renderGantt();
+      renderLiveQueue();
+      updateInstantPanel(animClock);
+      if (isPlaying) togglePlay();
+    }
+
+    function onScrub(val) {
+      animClock = parseFloat(val);
+      actualizarDisplaysReloj();
+      renderGantt();
+      renderLiveQueue();
+      updateInstantPanel(animClock);
+    }
+
+    function changeSpeed(val) {
+      animSpeed = parseFloat(val);
+    }
+
+    function changeWindow(val) {
+      animWindowMs = parseFloat(val);
+      renderGantt();
+      renderLiveQueue();
+    }
+
+    function animStep(now) {
+      if (!isPlaying) return;
+      const deltaMs = now - (lastPerfTime || now);
+      lastPerfTime = now;
+
+      animClock += deltaMs * animSpeed;
+      if (animClock >= currentParams.horizonte) {
+        animClock = currentParams.horizonte;
+        togglePlay();
+      }
+
+      document.getElementById("slider-timeline").value = animClock;
+      actualizarDisplaysReloj();
+      renderGantt();
+      renderLiveQueue();
+      updateInstantPanel(animClock);
+
+      if (isPlaying) {
+        animRafId = requestAnimationFrame(animStep);
+      }
+    }
+
+    function actualizarDisplaysReloj() {
+      const totalSec = animClock / 1000;
+      const mins = Math.floor(totalSec / 60);
+      const secs = Math.floor(totalSec % 60);
+      const msecs = Math.floor(animClock % 1000);
+      const str = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(msecs).padStart(3, '0')} s`;
+      document.getElementById("clock-display").textContent = str;
+    }
+
+    // Renderizado del Diagrama de Gantt
+    let currentRenderedBars = [];
+    let currentRenderedTimeouts = [];
+
+    function renderGantt() {
+      const canvas = document.getElementById("canvas-gantt");
+      if (!canvas || !currentSimResult) return;
+      const { ctx, width, height } = setupCanvasDpi(canvas);
+
+      ctx.clearRect(0, 0, width, height);
+
+      const c = currentParams.c;
+      const gutter = 85;
+      const plotWidth = width - gutter - 20;
+
+      let winStart = animClock - animWindowMs * 0.25;
+      let winEnd = winStart + animWindowMs;
+      if (winStart < 0) {
+        winStart = 0;
+        winEnd = winStart + animWindowMs;
+      }
+
+      // Dibujar carriles de conexiones
+      const laneHeight = Math.max(22, (height - 35) / c);
+      for (let i = 0; i < c; i++) {
+        const y = 30 + i * laneHeight;
+        ctx.fillStyle = (i % 2 === 0) ? "#f8fafc" : "#ffffff";
+        ctx.fillRect(gutter, y, plotWidth, laneHeight);
+
+        ctx.strokeStyle = "#e2e8f0";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(gutter, y + laneHeight);
+        ctx.lineTo(gutter + plotWidth, y + laneHeight);
+        ctx.stroke();
+
+        ctx.fillStyle = "#0f2942";
+        ctx.font = "600 11px -apple-system, sans-serif";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.fillText(`Conexión #${i + 1}`, gutter - 10, y + laneHeight / 2);
+      }
+
+      // Líneas de cuadrícula temporal
+      const step = animWindowMs <= 2000 ? 200 : (animWindowMs <= 5000 ? 500 : 1000);
+      const firstTick = Math.ceil(winStart / step) * step;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.font = "10px -apple-system, sans-serif";
+
+      for (let t = firstTick; t <= winEnd; t += step) {
+        const x = gutter + ((t - winStart) / animWindowMs) * plotWidth;
+        ctx.strokeStyle = "#f1f5f9";
+        ctx.beginPath();
+        ctx.moveTo(x, 25);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+
+        ctx.fillStyle = "#64748b";
+        ctx.fillText((t / 1000).toFixed(1) + "s", x, 10);
+      }
+
+      // Filtrar y dibujar peticiones activas en la ventana
+      currentRenderedBars = [];
+      const requests = currentSimResult.allRequests;
+
+      for (let i = 0; i < requests.length; i++) {
+        const r = requests[i];
+        if (r.serviceStartTime === null || r.connId < 0) continue;
+        if (r.serviceStartTime > winEnd || r.completionTime < winStart) continue;
+
+        const x1 = gutter + Math.max(0, ((r.serviceStartTime - winStart) / animWindowMs)) * plotWidth;
+        const x2 = gutter + Math.min(plotWidth, ((r.completionTime - winStart) / animWindowMs) * plotWidth);
+        const w = Math.max(2, x2 - x1);
+        const y = 30 + r.connId * laneHeight + 3;
+        const h = laneHeight - 6;
+
+        const isLec = r.type === "LECTURA";
+        ctx.fillStyle = isLec ? "#2563eb" : "#d97706";
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(x1, y, w, h, 4) : ctx.rect(x1, y, w, h);
+        ctx.fill();
+
+        ctx.strokeStyle = isLec ? "#1d4ed8" : "#b45309";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        if (w > 32) {
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "600 9.5px -apple-system, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(`#${r.id}`, x1 + w / 2, y + h / 2);
+        }
+
+        currentRenderedBars.push({
+          x: x1, y, w, h, req: r
+        });
+      }
+
+      // Dibujar marcadores de Timeout en la ventana
+      currentRenderedTimeouts = [];
+      for (let i = 0; i < requests.length; i++) {
+        const r = requests[i];
+        if (r.status !== "TIMEOUT") continue;
+        if (r.completionTime < winStart || r.completionTime > winEnd) continue;
+
+        const tx = gutter + ((r.completionTime - winStart) / animWindowMs) * plotWidth;
+        ctx.strokeStyle = "#dc2626";
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(tx, 25);
+        ctx.lineTo(tx, height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = "#dc2626";
+        ctx.beginPath();
+        ctx.arc(tx, 24, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        currentRenderedTimeouts.push({
+          x: tx, req: r
+        });
+      }
+
+      // Cursor vertical de tiempo actual (animClock)
+      if (animClock >= winStart && animClock <= winEnd) {
+        const curX = gutter + ((animClock - winStart) / animWindowMs) * plotWidth;
+        ctx.strokeStyle = "#0f2942";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(curX, 0);
+        ctx.lineTo(curX, height);
+        ctx.stroke();
+
+        ctx.fillStyle = "#0f2942";
+        ctx.beginPath();
+        ctx.moveTo(curX - 5, 0);
+        ctx.lineTo(curX + 5, 0);
+        ctx.lineTo(curX, 7);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    // Gráfico de Longitud de Cola Sincronizado
+    function renderLiveQueue() {
+      const canvas = document.getElementById("canvas-queue-live");
+      if (!canvas || !currentSimResult) return;
+      const { ctx, width, height } = setupCanvasDpi(canvas);
+
+      ctx.clearRect(0, 0, width, height);
+
+      const gutter = 85;
+      const plotWidth = width - gutter - 20;
+
+      let winStart = animClock - animWindowMs * 0.25;
+      let winEnd = winStart + animWindowMs;
+      if (winStart < 0) {
+        winStart = 0;
+        winEnd = winStart + animWindowMs;
+      }
+
+      const history = currentSimResult.queueHistory;
+      let maxQ = 4;
+      for (let i = 0; i < history.length; i++) {
+        if (history[i].t >= winStart && history[i].t <= winEnd) {
+          if (history[i].q > maxQ) maxQ = history[i].q;
+        }
+      }
+      maxQ = Math.max(maxQ, 5);
+
+      ctx.strokeStyle = "#f1f5f9";
+      ctx.lineWidth = 1;
+      for (let q = 0; q <= maxQ; q += Math.ceil(maxQ / 3)) {
+        const y = height - 15 - (q / maxQ) * (height - 30);
+        ctx.beginPath();
+        ctx.moveTo(gutter, y);
+        ctx.lineTo(gutter + plotWidth, y);
+        ctx.stroke();
+
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "9.5px -apple-system, sans-serif";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.fillText(q, gutter - 8, y);
+      }
+
+      ctx.strokeStyle = "#2563eb";
+      ctx.lineWidth = 2;
+      ctx.fillStyle = "rgba(37, 99, 235, 0.15)";
+
+      let lastQ = 0;
+      for (let i = 0; i < history.length; i++) {
+        if (history[i].t <= winStart) lastQ = history[i].q;
+        else break;
+      }
+
+      const startY = height - 15 - (lastQ / maxQ) * (height - 30);
+      ctx.beginPath();
+      ctx.moveTo(gutter, height - 15);
+      ctx.lineTo(gutter, startY);
+
+      let prevX = gutter;
+      let prevY = startY;
+
+      for (let i = 0; i < history.length; i++) {
+        const h = history[i];
+        if (h.t < winStart) continue;
+        if (h.t > winEnd) break;
+
+        const x = gutter + ((h.t - winStart) / animWindowMs) * plotWidth;
+        const y = height - 15 - (h.q / maxQ) * (height - 30);
+
+        ctx.lineTo(x, prevY);
+        ctx.lineTo(x, y);
+
+        prevX = x;
+        prevY = y;
+        lastQ = h.q;
+      }
+
+      ctx.lineTo(gutter + plotWidth, prevY);
+      ctx.lineTo(gutter + plotWidth, height - 15);
+      ctx.closePath();
+      ctx.fill();
+
+      // Línea de contorno
+      ctx.beginPath();
+      ctx.moveTo(gutter, startY);
+      prevY = startY;
+      for (let i = 0; i < history.length; i++) {
+        const h = history[i];
+        if (h.t < winStart) continue;
+        if (h.t > winEnd) break;
+        const x = gutter + ((h.t - winStart) / animWindowMs) * plotWidth;
+        const y = height - 15 - (h.q / maxQ) * (height - 30);
+        ctx.lineTo(x, prevY);
+        ctx.lineTo(x, y);
+        prevY = y;
+      }
+      ctx.lineTo(gutter + plotWidth, prevY);
+      ctx.stroke();
+
+      let currentLiveQ = 0;
+      for (let i = 0; i < history.length; i++) {
+        if (history[i].t <= animClock) currentLiveQ = history[i].q;
+        else break;
+      }
+      document.getElementById("badge-live-q").textContent = `En cola: ${currentLiveQ} req`;
+
+      if (animClock >= winStart && animClock <= winEnd) {
+        const curX = gutter + ((animClock - winStart) / animWindowMs) * plotWidth;
+        ctx.strokeStyle = "#0f2942";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(curX, 0);
+        ctx.lineTo(curX, height);
+        ctx.stroke();
+      }
+    }
+
+    // Panel Lateral de Estado Instantáneo
+    function updateInstantPanel(t) {
+      if (!currentSimResult) return;
+      const c = currentParams.c;
+      const requests = currentSimResult.allRequests;
+
+      const connListEl = document.getElementById("side-conn-list");
+      connListEl.innerHTML = "";
+
+      for (let i = 0; i < c; i++) {
+        const req = requests.find(r => r.connId === i && r.serviceStartTime !== null && r.serviceStartTime <= t && t < r.completionTime);
+
+        const card = document.createElement("div");
+        card.className = "conn-card";
+
+        if (req) {
+          const isLec = req.type === "LECTURA";
+          card.classList.add(isLec ? "busy-lec" : "busy-pes");
+          const elapsed = t - req.serviceStartTime;
+          const pct = Math.min(100, Math.max(0, (elapsed / req.sqlDuration) * 100));
+          const remaining = Math.max(0, req.sqlDuration - elapsed);
+
+          card.innerHTML = `
+            <div class="conn-header">
+              <span>Conexión #${i + 1}</span>
+              <span class="tag-pill ${isLec ? 'tag-lec' : 'tag-pes'}">${req.type}</span>
+            </div>
+            <div style="font-size: 0.78rem; display: flex; justify-content: space-between;">
+              <span>Req <strong>#${req.id}</strong></span>
+              <span>Resta: <strong>${remaining.toFixed(1)}ms</strong></span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" style="width: ${pct}%; background: ${isLec ? 'var(--accent-blue)' : 'var(--accent-amber)'}"></div>
+            </div>
+          `;
+        } else {
+          card.classList.add("free");
+          card.innerHTML = `
+            <div class="conn-header">
+              <span>Conexión #${i + 1}</span>
+              <span class="tag-pill tag-ok">LIBRE</span>
+            </div>
+            <div style="font-size: 0.76rem; color: var(--text-muted);">En espera de consultas</div>
+          `;
+        }
+        connListEl.appendChild(card);
+      }
+
+      const queueListEl = document.getElementById("side-queue-list");
+      const waitingRequests = requests.filter(r => {
+        if (r.arrivalTime > t) return false;
+        if (r.status === "EXITO") return t < r.serviceStartTime;
+        if (r.status === "TIMEOUT") return t < r.completionTime;
+        return t < currentParams.horizonte;
+      });
+
+      document.getElementById("side-queue-count").textContent = `${waitingRequests.length} peticiones`;
+
+      if (waitingRequests.length === 0) {
+        queueListEl.innerHTML = `<div style="color: var(--text-muted); font-size: 0.8rem; font-style: italic; text-align: center; padding: 12px 0;">Cola vacía en este instante</div>`;
+      } else {
+        queueListEl.innerHTML = "";
+        waitingRequests.slice(0, 15).forEach(r => {
+          const waitSoFar = t - r.arrivalTime;
+          const timeoutMs = currentParams.timeout;
+          const timeLeft = Math.max(0, timeoutMs - waitSoFar);
+          const isNearTimeout = timeLeft < 15;
+
+          const item = document.createElement("div");
+          item.className = "queue-item" + (isNearTimeout ? " near-timeout" : "");
+          item.innerHTML = `
+            <div>
+              <strong>#${r.id}</strong> <span class="tag-pill ${r.type === 'LECTURA' ? 'tag-lec' : 'tag-pes'}" style="font-size: 0.68rem;">${r.type}</span>
+            </div>
+            <div style="text-align: right; font-size: 0.72rem;">
+              <span>Espera: ${waitSoFar.toFixed(1)}ms</span><br>
+              <span style="color: ${isNearTimeout ? 'var(--accent-red)' : 'var(--text-muted)'}">${timeLeft.toFixed(1)}ms a timeout</span>
+            </div>
+          `;
+          queueListEl.appendChild(item);
+        });
+        if (waitingRequests.length > 15) {
+          const more = document.createElement("div");
+          more.style.textAlign = "center";
+          more.style.fontSize = "0.74rem";
+          more.style.color = "var(--text-muted)";
+          more.textContent = `...y ${waitingRequests.length - 15} más en espera`;
+          queueListEl.appendChild(more);
+        }
+      }
+    }
+
+    // Tooltip sobre el canvas Gantt
+    const ganttCanvas = document.getElementById("canvas-gantt");
+    const ganttTooltip = document.getElementById("gantt-tooltip");
+
+    if (ganttCanvas && ganttTooltip) {
+      ganttCanvas.addEventListener("mousemove", (e) => {
+        const rect = ganttCanvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        let found = null;
+        for (let i = 0; i < currentRenderedBars.length; i++) {
+          const b = currentRenderedBars[i];
+          if (mouseX >= b.x && mouseX <= b.x + b.w && mouseY >= b.y && mouseY <= b.y + b.h) {
+            found = b.req;
+            break;
+          }
+        }
+
+        if (!found) {
+          for (let i = 0; i < currentRenderedTimeouts.length; i++) {
+            const tm = currentRenderedTimeouts[i];
+            if (Math.abs(mouseX - tm.x) < 8) {
+              ganttTooltip.style.display = "block";
+              ganttTooltip.style.left = (e.clientX + 14) + "px";
+              ganttTooltip.style.top = (e.clientY + 14) + "px";
+              ganttTooltip.innerHTML = `
+                <div style="font-weight: 700; color: #f87171; margin-bottom: 2px;">✕ ConnectionTimeoutException</div>
+                <div>Petición: <strong>#${tm.req.id}</strong> (${tm.req.type})</div>
+                <div>Llegada: <strong>${tm.req.arrivalTime.toFixed(1)} ms</strong></div>
+                <div>Espera en cola: <strong>${tm.req.waitTime.toFixed(1)} ms</strong> (&ge; ${currentParams.timeout}ms)</div>
+                <div style="color: #cbd5e1; font-size: 0.72rem; margin-top: 3px;">Abortada sin ejecutar SQL</div>
+              `;
+              return;
+            }
+          }
+        }
+
+        if (found) {
+          ganttTooltip.style.display = "block";
+          ganttTooltip.style.left = (e.clientX + 14) + "px";
+          ganttTooltip.style.top = (e.clientY + 14) + "px";
+          ganttTooltip.innerHTML = `
+            <div style="font-weight: 700; color: #93c5fd; margin-bottom: 2px;">Petición #${found.id} (${found.type})</div>
+            <div>Conexión: <strong>#${found.connId + 1}</strong></div>
+            <div>Llegada: <strong>${found.arrivalTime.toFixed(1)} ms</strong></div>
+            <div>Espera en cola (Wq): <strong>${found.waitTime.toFixed(1)} ms</strong></div>
+            <div>Inicio SQL: <strong>${found.serviceStartTime.toFixed(1)} ms</strong></div>
+            <div>Fin SQL: <strong>${found.completionTime.toFixed(1)} ms</strong></div>
+            <div>Duración SQL: <strong>${found.sqlDuration.toFixed(1)} ms</strong></div>
+            <div>Latencia Total: <strong>${(found.waitTime + found.sqlDuration).toFixed(1)} ms</strong></div>
+          `;
+        } else {
+          ganttTooltip.style.display = "none";
+        }
+      });
+
+      ganttCanvas.addEventListener("mouseleave", () => {
+        ganttTooltip.style.display = "none";
+      });
+    }
+
+    /* =====================================================================
+       8. PESTAÑA 3: RESULTADOS (1 RÉPLICA)
+       ===================================================================== */
+    function poblarResultados1Replica() {
+      if (!currentSimResult) return;
+      const res = currentSimResult;
+
+      document.getElementById("kpi-exito").textContent = res.exitoTotalPct.toFixed(2) + "%";
+      const cardExito = document.getElementById("kpi-card-exito");
+      cardExito.className = "kpi-card " + (res.exitoTotalPct >= 95 ? "success" : (res.exitoTotalPct >= 85 ? "warning" : "danger"));
+
+      document.getElementById("kpi-wait").textContent = res.meanWait.toFixed(2) + " ms";
+      document.getElementById("kpi-p95").textContent = res.p95Total.toFixed(2) + " ms";
+      document.getElementById("kpi-util").textContent = res.utilizationPct.toFixed(2) + "%";
+
+      const toutCard = document.getElementById("kpi-card-timeouts");
+      document.getElementById("kpi-timeouts").textContent = res.timeouts.toLocaleString();
+      document.getElementById("kpi-timeouts-sub").textContent = `${((res.timeouts / res.total) * 100).toFixed(2)}% del total (${res.total.toLocaleString()} req)`;
+      toutCard.className = "kpi-card " + (res.timeouts === 0 ? "success" : (res.timeouts < 50 ? "warning" : "danger"));
+
+      document.getElementById("kpi-qlen").textContent = res.meanQueueLength.toFixed(2);
+
+      const tbodyBreakdown = document.querySelector("#table-breakdown tbody");
+      tbodyBreakdown.innerHTML = `
+        <tr>
+          <td><span class="tag-pill tag-lec">Lectura Rápida (OLTP)</span></td>
+          <td>${res.breakdown.lec.total.toLocaleString()}</td>
+          <td>${res.breakdown.lec.exitosas.toLocaleString()}</td>
+          <td>${res.breakdown.lec.timeouts.toLocaleString()}</td>
+          <td><strong>${res.breakdown.lec.pct.toFixed(2)}%</strong></td>
+          <td>${res.breakdown.lec.wait.toFixed(2)} ms</td>
+          <td>${res.breakdown.lec.sql.toFixed(2)} ms</td>
+          <td>${res.breakdown.lec.lat.toFixed(2)} ms</td>
+          <td>${res.breakdown.lec.p95.toFixed(2)} ms</td>
+        </tr>
+        <tr>
+          <td><span class="tag-pill tag-pes">Consulta Pesada / Reporte</span></td>
+          <td>${res.breakdown.pes.total.toLocaleString()}</td>
+          <td>${res.breakdown.pes.exitosas.toLocaleString()}</td>
+          <td>${res.breakdown.pes.timeouts.toLocaleString()}</td>
+          <td><strong>${res.breakdown.pes.pct.toFixed(2)}%</strong></td>
+          <td>${res.breakdown.pes.wait.toFixed(2)} ms</td>
+          <td>${res.breakdown.pes.sql.toFixed(2)} ms</td>
+          <td>${res.breakdown.pes.lat.toFixed(2)} ms</td>
+          <td>${res.breakdown.pes.p95.toFixed(2)} ms</td>
+        </tr>
+        <tr style="background: #f1f5f9; font-weight: 700;">
+          <td>Total Sistema</td>
+          <td>${res.breakdown.all.total.toLocaleString()}</td>
+          <td>${res.breakdown.all.exitosas.toLocaleString()}</td>
+          <td>${res.breakdown.all.timeouts.toLocaleString()}</td>
+          <td>${res.breakdown.all.pct.toFixed(2)}%</td>
+          <td>${res.breakdown.all.wait.toFixed(2)} ms</td>
+          <td>${res.breakdown.all.sql.toFixed(2)} ms</td>
+          <td>${res.breakdown.all.lat.toFixed(2)} ms</td>
+          <td>${res.breakdown.all.p95.toFixed(2)} ms</td>
+        </tr>
+      `;
+
+      const tbodyTrace = document.querySelector("#table-trace tbody");
+      tbodyTrace.innerHTML = "";
+      res.trace.forEach(t => {
+        let tagClass = "tag-lec";
+        if (t.evento === "TIMEOUT") tagClass = "tag-fail";
+        if (t.evento === "FIN_SQL") tagClass = "tag-ok";
+        if (t.evento === "ASIGNACIÓN_COLA") tagClass = "tag-pes";
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>#${t.paso}</td>
+          <td><strong>${t.reloj.toFixed(2)} ms</strong></td>
+          <td><span class="tag-pill ${tagClass}">${t.evento}</span></td>
+          <td>${t.detalle}</td>
+          <td>${t.poolOcupado}</td>
+          <td>${t.enCola}</td>
+        `;
+        tbodyTrace.appendChild(tr);
+      });
+
+      renderResultsCharts();
+    }
+
+    function renderResultsCharts() {
+      if (!currentSimResult) return;
+      renderHistogramWait();
+      renderFullQueueChart();
+    }
+
+    // Histograma de Espera en Cola
+    function renderHistogramWait() {
+      const canvas = document.getElementById("canvas-hist-wait");
+      if (!canvas || !currentSimResult) return;
+      const { ctx, width, height } = setupCanvasDpi(canvas);
+
+      ctx.clearRect(0, 0, width, height);
+
+      const gutter = 45;
+      const plotW = width - gutter - 20;
+      const plotH = height - 40;
+      const timeoutMs = currentParams.timeout;
+
+      const numBins = 10;
+      const binSize = timeoutMs / numBins;
+      const counts = new Array(numBins + 1).fill(0);
+
+      currentSimResult.allRequests.forEach(r => {
+        if (r.status === "TIMEOUT" || r.waitTime >= timeoutMs) {
+          counts[numBins]++;
+        } else {
+          const idx = Math.min(numBins - 1, Math.floor(r.waitTime / binSize));
+          counts[idx]++;
+        }
+      });
+
+      const maxCount = Math.max(...counts, 10);
+
+      ctx.strokeStyle = "#f1f5f9";
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "9.5px -apple-system, sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+
+      for (let i = 0; i <= 4; i++) {
+        const val = Math.round((maxCount / 4) * i);
+        const y = height - 25 - (i / 4) * plotH;
+        ctx.beginPath();
+        ctx.moveTo(gutter, y);
+        ctx.lineTo(gutter + plotW, y);
+        ctx.stroke();
+        ctx.fillText(val, gutter - 6, y);
+      }
+
+      const barW = (plotW / (numBins + 1)) * 0.78;
+      const stepX = plotW / (numBins + 1);
+
+      for (let i = 0; i <= numBins; i++) {
+        const x = gutter + i * stepX + (stepX - barW) / 2;
+        const bHeight = (counts[i] / maxCount) * plotH;
+        const y = height - 25 - bHeight;
+
+        const isTimeoutBin = (i === numBins);
+        ctx.fillStyle = isTimeoutBin ? "rgba(220, 38, 38, 0.85)" : "rgba(37, 99, 235, 0.85)";
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(x, y, barW, bHeight, [3, 3, 0, 0]) : ctx.rect(x, y, barW, bHeight);
+        ctx.fill();
+
+        ctx.fillStyle = "#64748b";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.font = "8.5px -apple-system, sans-serif";
+        if (i === numBins) {
+          ctx.fillStyle = "#dc2626";
+          ctx.fillText("≥" + timeoutMs + "ms", x + barW / 2, height - 20);
+        } else if (i % 2 === 0) {
+          ctx.fillText((i * binSize).toFixed(0), x + barW / 2, height - 20);
+        }
+      }
+
+      const toutX = gutter + numBins * stepX;
+      ctx.strokeStyle = "#dc2626";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(toutX, 10);
+      ctx.lineTo(toutX, height - 25);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Curva de Cola Completa en todo el horizonte
+    function renderFullQueueChart() {
+      const canvas = document.getElementById("canvas-full-queue");
+      if (!canvas || !currentSimResult) return;
+      const { ctx, width, height } = setupCanvasDpi(canvas);
+
+      ctx.clearRect(0, 0, width, height);
+
+      const gutter = 45;
+      const plotW = width - gutter - 20;
+      const plotH = height - 40;
+      const horizon = currentParams.horizonte;
+      const history = currentSimResult.queueHistory;
+
+      let maxQ = 5;
+      history.forEach(h => { if (h.q > maxQ) maxQ = h.q; });
+
+      ctx.strokeStyle = "#f1f5f9";
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "9.5px -apple-system, sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+
+      for (let i = 0; i <= 3; i++) {
+        const val = Math.round((maxQ / 3) * i);
+        const y = height - 25 - (i / 3) * plotH;
+        ctx.beginPath();
+        ctx.moveTo(gutter, y);
+        ctx.lineTo(gutter + plotW, y);
+        ctx.stroke();
+        ctx.fillText(val, gutter - 6, y);
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(gutter, height - 25);
+      let prevY = height - 25;
+
+      for (let i = 0; i < history.length; i++) {
+        const h = history[i];
+        const x = gutter + (h.t / horizon) * plotW;
+        const y = height - 25 - (h.q / maxQ) * plotH;
+        ctx.lineTo(x, prevY);
+        ctx.lineTo(x, y);
+        prevY = y;
+      }
+      ctx.lineTo(gutter + plotW, prevY);
+      ctx.lineTo(gutter + plotW, height - 25);
+      ctx.closePath();
+
+      ctx.fillStyle = "rgba(15, 41, 66, 0.12)";
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(gutter, height - 25);
+      prevY = height - 25;
+      for (let i = 0; i < history.length; i++) {
+        const h = history[i];
+        const x = gutter + (h.t / horizon) * plotW;
+        const y = height - 25 - (h.q / maxQ) * plotH;
+        ctx.lineTo(x, prevY);
+        ctx.lineTo(x, y);
+        prevY = y;
+      }
+      ctx.strokeStyle = "#0f2942";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      const meanY = height - 25 - (currentSimResult.meanQueueLength / maxQ) * plotH;
+      ctx.strokeStyle = "#d97706";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(gutter, meanY);
+      ctx.lineTo(gutter + plotW, meanY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "#d97706";
+      ctx.textAlign = "left";
+      ctx.font = "600 9.5px -apple-system, sans-serif";
+      ctx.fillText(`Lq Media: ${currentSimResult.meanQueueLength.toFixed(2)}`, gutter + 8, meanY - 6);
+
+      ctx.fillStyle = "#64748b";
+      ctx.textAlign = "center";
+      ctx.font = "9px -apple-system, sans-serif";
+      for (let s = 0; s <= 60; s += 15) {
+        const x = gutter + (s / 60) * plotW;
+        ctx.fillText(s + "s", x, height - 10);
+      }
+    }
+
+    // Exportar CSV de 1 Réplica
+    function exportarCSVReplica() {
+      if (!currentSimResult) return;
+      const res = currentSimResult;
+      let csv = "Simulador Pool Conexiones HikariCP - Resultados de 1 Replica\n";
+      csv += `Parametros: c=${currentParams.c}, lambda=${currentParams.lambda}, timeout=${currentParams.timeout}ms, disciplina=${currentParams.disciplina}, semilla=${currentParams.semilla}\n`;
+      csv += `Exito Total: ${res.exitoTotalPct.toFixed(2)}%, Espera Media: ${res.meanWait.toFixed(2)}ms, Latencia p95: ${res.p95Total.toFixed(2)}ms, Utilizacion: ${res.utilizationPct.toFixed(2)}%\n\n`;
+
+      csv += "ID,Tipo,Llegada_ms,Espera_ms,InicioSQL_ms,FinSQL_ms,DuracionSQL_ms,Conexion,Estado\n";
+      res.allRequests.forEach(r => {
+        csv += `${r.id},${r.type},${r.arrivalTime.toFixed(2)},${r.waitTime.toFixed(2)},${r.serviceStartTime !== null ? r.serviceStartTime.toFixed(2) : ''},${r.completionTime !== null ? r.completionTime.toFixed(2) : ''},${r.sqlDuration.toFixed(2)},${r.connId >= 0 ? r.connId + 1 : ''},${r.status}\n`;
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `HikariCP_Simulacion_c${currentParams.c}_${currentParams.disciplina}_semilla${currentParams.semilla}.csv`;
+      a.click();
+    }
+
+    /* =====================================================================
+       9. PESTAÑA 4: COMPARACIÓN DE ESCENARIOS (30 RÉPLICAS - CRN)
+       ===================================================================== */
+    function calcConfidenceInterval(values) {
+      const n = values.length;
+      if (n === 0) return { mean: 0, s: 0, error: 0, low: 0, high: 0 };
+      const mean = values.reduce((a, b) => a + b, 0) / n;
+      const variance = values.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / (n - 1);
+      const s = Math.sqrt(variance);
+      const tValue = 2.04523;
+      const error = tValue * (s / Math.sqrt(n));
+      return {
+        mean,
+        s,
+        error,
+        low: mean - error,
+        high: mean + error
+      };
+    }
+
+    async function ejecutarComparacion30Replicas() {
+      const btn = document.getElementById("btn-run-batch");
+      const progContainer = document.getElementById("batch-progress-container");
+      const progBar = document.getElementById("batch-progress-bar");
+
+      btn.disabled = true;
+      progContainer.style.display = "block";
+      progBar.style.width = "0%";
+
+      const scKeys = ["1", "2", "3", "4", "5", "6"];
+      const results = {};
+      scKeys.forEach(k => {
+        results[k] = {
+          config: ESCENARIOS_CONFIG[k],
+          exitoTotal: [],
+          exitoLec: [],
+          exitoPes: [],
+          wait: [],
+          p95: [],
+          util: [],
+          qlen: []
+        };
+      });
+
+      const totalSteps = 30 * scKeys.length;
+      let completedSteps = 0;
+
+      for (let r = 0; r < 30; r++) {
+        const seed = 42 + r;
+        for (let i = 0; i < scKeys.length; i++) {
+          const k = scKeys[i];
+          const sc = ESCENARIOS_CONFIG[k];
+          const simRes = runSimulation({ ...sc, semilla: seed });
+
+          results[k].exitoTotal.push(simRes.exitoTotalPct);
+          results[k].exitoLec.push(simRes.exitoLecPct);
+          results[k].exitoPes.push(simRes.exitoPesPct);
+          results[k].wait.push(simRes.meanWait);
+          results[k].p95.push(simRes.p95Total);
+          results[k].util.push(simRes.utilizationPct);
+          results[k].qlen.push(simRes.meanQueueLength);
+
+          completedSteps++;
+        }
+
+        if (r % 5 === 0 || r === 29) {
+          const pct = Math.round((completedSteps / totalSteps) * 100);
+          progBar.style.width = pct + "%";
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      }
+
+      const summary = {};
+      scKeys.forEach(k => {
+        summary[k] = {
+          name: ESCENARIOS_CONFIG[k].name,
+          config: ESCENARIOS_CONFIG[k],
+          exitoTotal: calcConfidenceInterval(results[k].exitoTotal),
+          exitoLec: calcConfidenceInterval(results[k].exitoLec),
+          exitoPes: calcConfidenceInterval(results[k].exitoPes),
+          wait: calcConfidenceInterval(results[k].wait),
+          p95: calcConfidenceInterval(results[k].p95),
+          util: calcConfidenceInterval(results[k].util),
+          qlen: calcConfidenceInterval(results[k].qlen)
+        };
+      });
+
+      batchComparisonData = summary;
+
+      poblarTablaComparacion(summary);
+      renderBatchCharts();
+
+      btn.disabled = false;
+      progContainer.style.display = "none";
+    }
+
+    function poblarTablaComparacion(summary) {
+      const tbody = document.querySelector("#table-batch-stats tbody");
+      tbody.innerHTML = "";
+
+      Object.keys(summary).forEach(k => {
+        const sc = summary[k];
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+          <td><strong>${sc.name}</strong></td>
+          <td><span style="font-size: 0.78rem; color: var(--text-muted);">${sc.config.c} conn, ${sc.config.disciplina}, ${sc.config.lambda} req/s</span></td>
+          <td><strong>${sc.exitoTotal.mean.toFixed(2)}%</strong> <span style="font-size: 0.76rem; color: var(--text-muted);">±${sc.exitoTotal.error.toFixed(2)}%</span></td>
+          <td>${sc.exitoLec.mean.toFixed(2)}%</td>
+          <td>${sc.exitoPes.mean.toFixed(2)}%</td>
+          <td>${sc.wait.mean.toFixed(2)} ms <span style="font-size: 0.76rem; color: var(--text-muted);">±${sc.wait.error.toFixed(2)}</span></td>
+          <td>${sc.p95.mean.toFixed(2)} ms</td>
+          <td>${sc.util.mean.toFixed(2)}%</td>
+          <td>${sc.qlen.mean.toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Gráficos de Comparación con Bigotes de Error
+    function renderBatchCharts() {
+      if (!batchComparisonData) return;
+      renderBatchHorizontalBar("canvas-batch-exito", "exitoTotal", "%", 0, 100);
+      renderBatchHorizontalBar("canvas-batch-wait", "wait", " ms", 0, null);
+    }
+
+    function renderBatchHorizontalBar(canvasId, metricKey, unit, minVal, maxValOverride) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || !batchComparisonData) return;
+      const { ctx, width, height } = setupCanvasDpi(canvas);
+
+      ctx.clearRect(0, 0, width, height);
+
+      const gutter = 175;
+      const plotW = width - gutter - 40;
+      const keys = Object.keys(batchComparisonData);
+      const rowHeight = (height - 35) / keys.length;
+
+      let maxVal = maxValOverride;
+      if (maxVal === null) {
+        maxVal = Math.max(...keys.map(k => batchComparisonData[k][metricKey].high)) * 1.15;
+        maxVal = Math.max(maxVal, 10);
+      }
+
+      ctx.strokeStyle = "#f1f5f9";
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "9px -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+
+      const gridTicks = 5;
+      for (let i = 0; i <= gridTicks; i++) {
+        const val = (maxVal / gridTicks) * i;
+        const x = gutter + (val / maxVal) * plotW;
+        ctx.beginPath();
+        ctx.moveTo(x, 20);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+        ctx.fillText(val.toFixed(0) + unit, x, 6);
+      }
+
+      keys.forEach((k, idx) => {
+        const item = batchComparisonData[k];
+        const stat = item[metricKey];
+        const y = 25 + idx * rowHeight + (rowHeight - 18) / 2;
+        const barH = 18;
+
+        const barW = Math.max(0, (stat.mean / maxVal) * plotW);
+
+        let fillColor = "#2563eb";
+        if (metricKey === "exitoTotal") {
+          fillColor = stat.mean >= 98 ? "#10b981" : (stat.mean >= 90 ? "#2563eb" : "#dc2626");
+        } else {
+          fillColor = stat.mean < 10 ? "#10b981" : (stat.mean < 25 ? "#2563eb" : "#d97706");
+        }
+
+        ctx.fillStyle = fillColor;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(gutter, y, barW, barH, [0, 4, 4, 0]) : ctx.rect(gutter, y, barW, barH);
+        ctx.fill();
+
+        // Bigote de Error (IC 95%)
+        const xLow = gutter + (Math.max(0, stat.low) / maxVal) * plotW;
+        const xHigh = gutter + (Math.min(maxVal, stat.high) / maxVal) * plotW;
+        const midY = y + barH / 2;
+
+        ctx.strokeStyle = "#0f2942";
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(xLow, midY);
+        ctx.lineTo(xHigh, midY);
+        ctx.moveTo(xLow, midY - 4);
+        ctx.lineTo(xLow, midY + 4);
+        ctx.moveTo(xHigh, midY - 4);
+        ctx.lineTo(xHigh, midY + 4);
+        ctx.stroke();
+
+        ctx.fillStyle = "#0f2942";
+        ctx.font = "600 10px -apple-system, sans-serif";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.fillText(item.name, gutter - 10, midY);
+
+        ctx.fillStyle = "#1e293b";
+        ctx.font = "bold 9.5px -apple-system, sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText(`${stat.mean.toFixed(2)}${unit} (±${stat.error.toFixed(2)})`, Math.max(gutter + barW, xHigh) + 6, midY);
+      });
+    }
+
+    function exportarCSVComparacion() {
+      if (!batchComparisonData) return;
+      let csv = "Escenario,c,Disciplina,Lambda,Timeout,ExitoTotal_Media,ExitoTotal_Error95,ExitoLec_Media,ExitoPes_Media,Espera_Media_ms,Espera_Error95,Latencia_p95_ms,Utilizacion_Pool_Pct,Cola_Media_Lq\n";
+
+      Object.keys(batchComparisonData).forEach(k => {
+        const sc = batchComparisonData[k];
+        csv += `"${sc.name}",${sc.config.c},${sc.config.disciplina},${sc.config.lambda},${sc.config.timeout},${sc.exitoTotal.mean.toFixed(3)},${sc.exitoTotal.error.toFixed(3)},${sc.exitoLec.mean.toFixed(3)},${sc.exitoPes.mean.toFixed(3)},${sc.wait.mean.toFixed(3)},${sc.wait.error.toFixed(3)},${sc.p95.mean.toFixed(3)},${sc.util.mean.toFixed(3)},${sc.qlen.mean.toFixed(3)}\n`;
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Comparacion_Escenarios_30Replicas_HikariCP.csv";
+      a.click();
+    }
+
+    /* =====================================================================
+       10. INICIALIZACIÓN AL CARGAR LA PÁGINA
+       ===================================================================== */
+    window.addEventListener("DOMContentLoaded", () => {
+      cargarEscenario("1");
+      currentSimResult = runSimulation(currentParams);
+      poblarResultados1Replica();
+      actualizarDiagramaSVG();
+      renderGantt();
+      renderLiveQueue();
+      updateInstantPanel(0);
+    });
+
+    window.addEventListener("resize", () => {
+      renderGantt();
+      renderLiveQueue();
+      renderResultsCharts();
+      if (batchComparisonData) renderBatchCharts();
+    });
+  </script>
+</body>
+</html>
